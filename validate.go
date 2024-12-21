@@ -10,19 +10,19 @@ import (
 
 func ValidateViewModel(data interface{}, tmpl *template.Template, templateName string) error {
 	missing, extra := CompareViewModel(data, tmpl, templateName)
-	errorStr := fmt.Sprintf("In template [%v] the view model ", templateName)
+	errorStr := ""
 	if len(extra) > 0 {
-		errorStr += "contains extra fields ["
+		errorStr += "extra fields ["
 		for idx, item := range extra {
 			if idx > 0 {
 				errorStr += ", "
 			}
 			errorStr += item
 		}
-		errorStr += "]"
+		errorStr += "] "
 	}
 	if len(missing) > 0 {
-		errorStr += "is missing fields ["
+		errorStr += "missing fields ["
 		for idx, item := range missing {
 			if idx > 0 {
 				errorStr += ", "
@@ -103,6 +103,11 @@ func extractFieldsFromTemplate(root *template.Template, n parse.Node, parentFiel
 						if tmpl := root.Lookup(node.Name); tmpl != nil && tmpl.Tree != nil {
 							extractFieldsFromTemplate(root, tmpl.Tree.Root, current)
 						}
+					} else if _, ok := arg.(*parse.DotNode); ok {
+						// Recursively extract fields from the included template under this parent
+						if tmpl := root.Lookup(node.Name); tmpl != nil && tmpl.Tree != nil {
+							extractFieldsFromTemplate(root, tmpl.Tree.Root, parentField)
+						}
 					}
 				}
 			}
@@ -175,7 +180,7 @@ func CompareViewModel(data interface{}, tmpl *template.Template, templateName st
 func compareTemplateFields(templateField, structField *templateField) (missing []string, extra []string) {
 	for name, child := range templateField.Children {
 		if _, ok := structField.Children[name]; !ok {
-			missing = append(missing, name)
+			missing = append(missing, structField.Name+"->"+name)
 		} else {
 			m, e := compareTemplateFields(child, structField.Children[name])
 			missing = append(missing, m...)
@@ -184,7 +189,7 @@ func compareTemplateFields(templateField, structField *templateField) (missing [
 	}
 	for name := range structField.Children {
 		if _, ok := templateField.Children[name]; !ok {
-			extra = append(extra, name)
+			extra = append(extra, templateField.Name+"->"+name)
 		}
 	}
 	return missing, extra
